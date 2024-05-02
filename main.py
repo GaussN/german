@@ -4,13 +4,15 @@
 import fastapi as fapi
 
 import models
-
+import buisnes
 
 app = fapi.FastAPI(debug=__debug__)
 
 
-async def create_network(request: fapi.Request, network: models.NetworkCreate) -> fapi.Response:
-    pass
+@app.post('/network')
+async def create_network(request: fapi.Request, network: models.NetworkCreate) -> models.Network:
+    new_network = buisnes.Network.create(network, request.client.host)
+    return new_network
 
 
 async def delete_network(request: fapi.Request) -> fapi.Response:

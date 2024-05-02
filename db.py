@@ -5,7 +5,6 @@ from icecream import ic
 
 import models
 
-
 DB_CONN_STRING = './.sqlite3'
 
 
@@ -14,8 +13,8 @@ class Network:
     def create(network: models.Network) -> models.Network:
         with sqlite3.connect(DB_CONN_STRING) as _conn:
             _cur = _conn.execute(
-                "INSERT INTO NETWORKS(uuid, container_id, name, password, peers, peers_keys)"
-                    "VALUES (:uuid, :container_id, :name, :password, :peers, :peers_keys)",
+                "INSERT INTO NETWORKS(uuid, container_id, name, password, peers, host)"
+                "VALUES (:uuid, :container_id, :name, :password, :peers, :host)",
                 network.dict()
             )
             _res = _cur.fetchall()
@@ -72,7 +71,7 @@ if __name__ == '__main__':
                     name TEXT UNIQUE,
                     password TEXT, 
                     peers INTEGER,
-                    peers_keys TEXT
+                    host TEXT
                 )
             """)
 

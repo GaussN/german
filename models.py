@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 
 class Keys(BaseModel):
-    peer_id: int
     private: str
     public: str
 
@@ -16,14 +15,18 @@ class Network(BaseModel):
     name: str
     password: str
     peers: int
-    peers_keys: list[Keys]
+    host: str
+    # peers_keys: dict[int, Keys]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def dict(self, **kwargs):
         _ret_dict = super().dict(**kwargs)
         ic(_ret_dict)
 
-        _p_keys: list[Keys] = _ret_dict["peers_keys"]
-        _ret_dict["peers_keys"] = '\t'.join(f"{_k.peer_id}:{_k.get('private')}:{_k.get('public')}" for _k in _p_keys)
+        _uuid = _ret_dict["uuid"]
+        _ret_dict["uuid"] = str(_uuid)
 
         ic(_ret_dict)
         return _ret_dict
