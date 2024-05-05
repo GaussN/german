@@ -2,6 +2,7 @@
 TODO: переделать днс, хранить в файле массив или словарь с номерами пиров в виде ключей
 """
 import os
+import re
 import uuid
 import socket
 import pickle
@@ -38,21 +39,24 @@ class DNS_record:
 
 
 class DNS:
-    def __init__(self, path: str, peers: int = None):
+    def _set_peers_count_from_files(self):
+        _filter = re.compile(r'peer\d{1,2}')
+        _, _dirs, _ = next(os.walk(self._path))
+        ic(_dirs)
+        self._peers = len(list(filter(_filter.match, _dirs)))
+        ic(self._peers)
+
+    def __init__(self, path: str):
         self._path = path
-        self._peers = peers
+        self._peers = 0
+        self._set_peers_count_from_files()
         self.dns_records: list[DNS_record] = []
+
         if not os.path.exists(os.path.join(path, 'dns')):
-            if not self._peers:
-                raise ValueError("cannot generate dns file without specify of peers count ")
             ic('create dns file')
             self._gen_dns_file()
-        else:
-            self.load_records()
-            self._peers = len(self.dns_records) + 1  # with first peer
-            ic('load dns data')
-            if peers != self._peers:
-                ic(f'peers count you set not equal peers of dns count')
+        self.load_records()
+        ic('load dns data')
 
     def _gen_dns_file(self):
         # first peer reserved for host
@@ -82,11 +86,13 @@ class DNS:
             for _record in self.dns_records:
                 pickle.dump(_record, _dns_file)
 
-    def _read_config(self, _n: int):
+    def _read_config(self, _n: int) -> str:
+        if _n < 2 or _n > self._peers:
+            raise ValueError('Invalid peer number')
         with open(os.path.join(self._path, f'peer{_n}', f'peer{_n}.conf')) as _config:
             return _config.read()
 
-    def get_config(self, _ip: ipaddress.IPv4Address):
+    def get_config(self, _ip: ipaddress.IPv4Address) -> str | None:
         self.load_records()
         try:
             for _record in self.dns_records:
@@ -99,13 +105,14 @@ class DNS:
             self.dump_records()
             ic(f'dump records {self._path}')
 
-    def release_config(self, _ip: ipaddress.IPv4Address):
+    def release_config(self, _ip: ipaddress.IPv4Address) -> bool:
         self.load_records()
         try:
             for _record in self.dns_records:
                 if _record.ip == _ip:
                     _record.ip = DNS_record.get_default(_record.n)
-                    return
+                    return True
+            return False
         finally:
             self.dump_records()
 
@@ -201,7 +208,11 @@ class Network:
 
     @staticmethod
     def get_config(_uuid: uuid.UUID, _ip: ipaddress.IPv4Address, _password: str):
-        raise NotImplementedError
+        network: models.Network = db.Network.check_password(_uuid, _password)
+        if not network:
+            return None
+        _dns = DNS(os.path.join(Network._CONFIGS_DIR, str(_uuid)))
+        return _dns.get_config(_ip)
 
     @staticmethod
     def release_config(_uuid: uuid.UUID, _ip: ipaddress.IPv4Address):

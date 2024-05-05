@@ -17,17 +17,19 @@ async def create_network(request: fapi.Request, network: models.NetworkCreate) -
     return new_network
 
 
+@app.post('/login')
+async def login_in_network(
+        request: fapi.Request,
+        uuid_: str = fapi.Body(alias='uuid'),
+        password: str = fapi.Body(alias='password')
+) -> fapi.Response:
+    config = buisnes.Network.get_config(uuid_, request.client.host, password)
+    return fapi.Response(content=config or 'Invalid uuid or password ')
+
+
 async def delete_network(request: fapi.Request) -> fapi.Response:
     pass
 
 
 async def get_networks(request: fapi.Request) -> fapi.Response:
     pass
-
-
-# should get password and validate it
-# should return config file
-@app.get('/login')
-async def login_in_network(request: fapi.Request, _uuid: str) -> models.Keys:
-    # return some error status(mb 403) if network have no free keys
-    return buisnes.Network.get_keys(uuid.UUID(_uuid), request.client.host) or ...
