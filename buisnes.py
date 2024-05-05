@@ -1,5 +1,5 @@
 """
-TODO: make
+TODO: переделать днс, хранить в файле массив или словарь с номерами пиров в виде ключей
 """
 import os
 import uuid
@@ -25,7 +25,7 @@ def _get_free_port() -> int:
         _sock.close()
 
 
-class _dns_record:
+class DNS_record:
     def __init__(self, ip: str | ipaddress.IPv4Address, n: int):
         if isinstance(ip, str):
             ip = ipaddress.IPv4Address(ip)
@@ -34,14 +34,14 @@ class _dns_record:
 
     @staticmethod
     def get_default(n=None):
-        return _dns_record('0.0.0.1', n or 0)
+        return DNS_record('0.0.0.1', n or 0)
 
 
-class _dns:
+class DNS:
     def __init__(self, path: str, peers: int = None):
         self._path = path
         self._peers = peers
-        self.dns_records = []
+        self.dns_records: list[DNS_record] = []
         if not os.path.exists(os.path.join(path, 'dns')):
             if not self._peers:
                 raise ValueError("cannot generate dns file without specify of peers count ")
@@ -49,12 +49,15 @@ class _dns:
             self._gen_dns_file()
         else:
             self.load_records()
-            self._peers = len(self.dns_records)
+            self._peers = len(self.dns_records) + 1  # with first peer
+            ic('load dns data')
+            if peers != self._peers:
+                ic(f'peers count you set not equal peers of dns count')
 
     def _gen_dns_file(self):
         # first peer reserved for host
         for peer in range(2, self._peers + 1):
-            self.dns_records.append(_dns_record.get_default(peer))  # address by default
+            self.dns_records.append(DNS_record.get_default(peer))  # address by default
         self.dump_records()
 
     def load_records(self):
@@ -63,8 +66,11 @@ class _dns:
         ic(_d, self.dns_records)
         try:
             with open(os.path.join(self._path, 'dns'), 'rb') as _dns_file:
-                while _dns_file:
-                    self.dns_records.append(pickle.load(_dns_file))
+                try:
+                    while _dns_file:
+                        self.dns_records.append(pickle.load(_dns_file))
+                except EOFError:
+                    pass
         except Exception as e:
             ic(e)
             self.dns_records = _d
@@ -72,17 +78,36 @@ class _dns:
 
     def dump_records(self):
         with open(os.path.join(self._path, 'dns'), 'wb') as _dns_file:
+            _dns_file.seek(0)  # // pass
             for _record in self.dns_records:
                 pickle.dump(_record, _dns_file)
 
-    def _new_keys(self):
-        """
-        Take free keys and associates them with user
-        """
-        raise NotImplemented
+    def _read_config(self, _n: int):
+        with open(os.path.join(self._path, f'peer{_n}', f'peer{_n}.conf')) as _config:
+            return _config.read()
 
-    def _free_keys(self):
-        raise NotImplemented
+    def get_config(self, _ip: ipaddress.IPv4Address):
+        self.load_records()
+        try:
+            for _record in self.dns_records:
+                if _record.ip == ipaddress.IPv4Address('0.0.0.1'):
+                    _record.ip = _ip
+                    ic([_.__dict__ for _ in self.dns_records])
+                    return self._read_config(_record.n)
+            return None
+        finally:
+            self.dump_records()
+            ic(f'dump records {self._path}')
+
+    def release_config(self, _ip: ipaddress.IPv4Address):
+        self.load_records()
+        try:
+            for _record in self.dns_records:
+                if _record.ip == _ip:
+                    _record.ip = DNS_record.get_default(_record.n)
+                    return
+        finally:
+            self.dump_records()
 
 
 class Network:
@@ -172,18 +197,12 @@ class Network:
         (2) creating models.Network
         (3) invoke Network.clear(_)
         """
-        raise NotImplemented
+        raise NotImplementedError
 
     @staticmethod
-    def get_keys(_uuid: uuid.UUID):
-        """
-        Should invoke necessary method from _dns()
-        """
-        raise NotImplemented
+    def get_config(_uuid: uuid.UUID, _ip: ipaddress.IPv4Address, _password: str):
+        raise NotImplementedError
 
     @staticmethod
-    def free_keys(_uuid: uuid.UUID):
-        """
-        See above
-        """
-        raise NotImplemented
+    def release_config(_uuid: uuid.UUID, _ip: ipaddress.IPv4Address):
+        raise NotImplementedError

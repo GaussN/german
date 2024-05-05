@@ -7,6 +7,7 @@ from pydantic import BaseModel
 class Keys(BaseModel):
     private: str
     public: str
+    shared: str
 
 
 class Network(BaseModel):
@@ -16,7 +17,6 @@ class Network(BaseModel):
     password: str
     peers: int
     host: str
-    # peers_keys: dict[int, Keys]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
