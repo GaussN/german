@@ -1,12 +1,15 @@
 """
 TODO: переделать днс, хранить в файле массив или словарь с номерами пиров в виде ключей
+TODO: проверять налицие данного адреса в dns
+TODO: хэшировать пароли
 """
 import os
-import re
-import uuid
-import socket
 import pickle
-import ipaddress
+from re import compile
+from uuid import uuid4, UUID
+from ipaddress import IPv4Address
+from sqlite3 import IntegrityError
+from socket import socket, AF_INET, SOCK_STREAM
 
 import docker
 from icecream import ic
@@ -14,11 +17,12 @@ from icecream import ic
 import db
 import models
 
+
 _DOCKER = docker.from_env()
 
 
 def _get_free_port() -> int:
-    _sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    _sock = socket(AF_INET, SOCK_STREAM)
     try:
         _sock.bind(('', 0))  # os set free port
         return _sock.getsockname()[1]  # getsockname return tuple of address{0} and port{1}
@@ -27,9 +31,9 @@ def _get_free_port() -> int:
 
 
 class DNS_record:
-    def __init__(self, ip: str | ipaddress.IPv4Address, n: int):
+    def __init__(self, ip: str | IPv4Address, n: int):
         if isinstance(ip, str):
-            ip = ipaddress.IPv4Address(ip)
+            ip = IPv4Address(ip)
         self.ip = ip
         self.n = n
 
@@ -40,10 +44,9 @@ class DNS_record:
 
 class DNS:
     def _set_peers_count_from_files(self):
-        _filter = re.compile(r'peer\d{1,2}')
+        _filter = compile(r'peer\d{1,2}')
         _, _dirs, _ = next(os.walk(self._path))
-        ic(_dirs)
-        self._peers = len(list(filter(_filter.match, _dirs)))
+        self._peers = len(list(filter(_filter.match, ic(_dirs))))
         ic(self._peers)
 
     def __init__(self, path: str):
@@ -67,7 +70,6 @@ class DNS:
     def load_records(self):
         _d = self.dns_records  # dump for exception case
         self.dns_records = []
-        ic(_d, self.dns_records)
         try:
             with open(os.path.join(self._path, 'dns'), 'rb') as _dns_file:
                 try:
@@ -82,7 +84,6 @@ class DNS:
 
     def dump_records(self):
         with open(os.path.join(self._path, 'dns'), 'wb') as _dns_file:
-            _dns_file.seek(0)  # // pass
             for _record in self.dns_records:
                 pickle.dump(_record, _dns_file)
 
@@ -92,11 +93,11 @@ class DNS:
         with open(os.path.join(self._path, f'peer{_n}', f'peer{_n}.conf')) as _config:
             return _config.read()
 
-    def get_config(self, _ip: ipaddress.IPv4Address) -> str | None:
+    def get_config(self, _ip: IPv4Address) -> str | None:
         self.load_records()
         try:
             for _record in self.dns_records:
-                if _record.ip == ipaddress.IPv4Address('0.0.0.1'):
+                if _record.ip == IPv4Address('0.0.0.1'):
                     _record.ip = _ip
                     ic([_.__dict__ for _ in self.dns_records])
                     return self._read_config(_record.n)
@@ -105,7 +106,7 @@ class DNS:
             self.dump_records()
             ic(f'dump records {self._path}')
 
-    def release_config(self, _ip: ipaddress.IPv4Address) -> bool:
+    def release_config(self, _ip: IPv4Address) -> bool:
         self.load_records()
         try:
             for _record in self.dns_records:
@@ -121,7 +122,7 @@ class Network:
     _CONFIGS_DIR = os.path.join(os.getcwd(), 'configs')
 
     @staticmethod
-    def _create_container(_uuid: uuid.UUID, port: int, peers: int):
+    def _create_container(_uuid: UUID, port: int, peers: int):
         _config_path = os.path.join(Network._CONFIGS_DIR, str(_uuid))
         ic(_config_path)
         _model = _DOCKER.containers.run(
@@ -153,7 +154,7 @@ class Network:
 
     @staticmethod
     def create(network: models.NetworkCreate, host: str):
-        _uuid = uuid.uuid4()
+        _uuid = uuid4()
 
         _config_dir = os.path.join(Network._CONFIGS_DIR, str(_uuid))
         os.mkdir(_config_dir)
@@ -170,11 +171,10 @@ class Network:
             peers=network.peers,
             host=host,
         )
-        ic(network_full)
 
         try:
-            db.Network.create(network_full)
-        except Exception as e:
+            db.Network.create(ic(network_full))
+        except IntegrityError as e:
             ic(e)
             Network.clear(network_full)
             raise
@@ -198,7 +198,7 @@ class Network:
         ic('delete from db')
 
     @staticmethod
-    def delete(_uuid: uuid.UUID):
+    def delete(_uuid: UUID):
         """
         (1) SELECT * FROM `networks` WHERE `uuid` = :uuid LIMIT 1;
         (2) creating models.Network
@@ -207,7 +207,7 @@ class Network:
         raise NotImplementedError
 
     @staticmethod
-    def get_config(_uuid: uuid.UUID, _ip: ipaddress.IPv4Address, _password: str):
+    def get_config(_uuid: UUID, _ip: IPv4Address, _password: str):
         network: models.Network = db.Network.check_password(_uuid, _password)
         if not network:
             return None
@@ -215,5 +215,10 @@ class Network:
         return _dns.get_config(_ip)
 
     @staticmethod
-    def release_config(_uuid: uuid.UUID, _ip: ipaddress.IPv4Address):
+    def release_config(_uuid: UUID, _ip: IPv4Address):
         raise NotImplementedError
+
+    @staticmethod
+    def get_networks() -> list[models.NetworkOut]:
+        _networks = [models.NetworkOut(**_.__dict__) for _ in db.Network.get()]
+        return ic(_networks)

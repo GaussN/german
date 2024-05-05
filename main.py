@@ -1,7 +1,7 @@
 """
 
 """
-import uuid
+from ipaddress import IPv4Address
 
 import fastapi as fapi
 
@@ -23,13 +23,14 @@ async def login_in_network(
         uuid_: str = fapi.Body(alias='uuid'),
         password: str = fapi.Body(alias='password')
 ) -> fapi.Response:
-    config = buisnes.Network.get_config(uuid_, request.client.host, password)
-    return fapi.Response(content=config or 'Invalid uuid or password ')
+    config = buisnes.Network.get_config(uuid_, IPv4Address(request.client.host), password)
+    return fapi.Response(content=config or 'Invalid uuid or password', headers={'Content-type': 'plain/text'})
 
 
 async def delete_network(request: fapi.Request) -> fapi.Response:
     pass
 
 
-async def get_networks(request: fapi.Request) -> fapi.Response:
-    pass
+@app.get('/networks')
+async def get_networks(request: fapi.Request) -> list[models.NetworkOut]:
+    return buisnes.Network.get_networks()

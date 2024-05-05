@@ -10,10 +10,13 @@ class Keys(BaseModel):
     shared: str
 
 
-class Network(BaseModel):
+class NetworkOut(BaseModel):
     uuid: uuid.UUID
-    container_id: str
     name: str
+
+
+class Network(NetworkOut):
+    container_id: str
     password: str
     peers: int
     host: str
@@ -36,18 +39,3 @@ class NetworkCreate(BaseModel):
     name: str
     password: str
     peers: int
-
-
-class NetworkOut(BaseModel):
-    id: uuid.UUID
-    name: str
-
-
-class NetworkOut2Auth(NetworkOut):
-    public: str
-
-
-class NetworkDelete(BaseModel):
-    id: uuid.UUID
-    server_private_key: str
-    holder_private_key: str
