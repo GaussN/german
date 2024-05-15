@@ -50,6 +50,15 @@ class Network:
         raise NotImplemented
 
     @staticmethod
+    def get_by_container_id(container_id: str) -> models.Network:
+        with sqlite3.connect(DB_CONN_STRING) as conn:
+            cur = conn.execute("SELECT * FROM networks WHERE container_id = ?", (container_id,))
+            cur.row_factory = sqlite3.Row
+            network = ic(models.Network(**cur.fetchone()))
+            cur.close()
+            return network
+
+    @staticmethod
     def delete(_uuid: uuid.UUID) -> None:
         with sqlite3.connect(DB_CONN_STRING) as conn:
             cur = conn.execute("DELETE FROM networks WHERE uuid = ?", (str(_uuid),))

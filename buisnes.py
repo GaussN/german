@@ -5,11 +5,13 @@ TODO: хэшировать пароли
 """
 import os
 import pickle
+import re
 from re import compile
 from uuid import uuid4, UUID
 from ipaddress import IPv4Address
 from sqlite3 import IntegrityError
 from socket import socket, AF_INET, SOCK_STREAM
+from contextlib import suppress
 
 import docker
 from icecream import ic
@@ -19,6 +21,8 @@ import models
 
 
 _DOCKER = docker.from_env()
+
+_REPLACE_PORT_TEMPLATE = re.compile(r':51820')
 
 
 def _get_free_port() -> int:
@@ -143,7 +147,7 @@ class Network:
                 'PERSISTENKEEPALIVE_PEERS': '',
                 'LOG_CONFIG': True,
             },
-            ports={'51280/udp': port},
+            ports={'51820/udp': port},
             volumes=[
                 '/lib/modules:/lib/modules',
                 f'{_config_path}:/config',
@@ -185,34 +189,44 @@ class Network:
     def clear(network: models.Network):
         ic(f'clear {network.uuid}')
         # kill the docker container
+        # with suppress(...):
         _ = _DOCKER.containers.get(network.container_id)
         _.kill()
         ic('kill the containers')
         # remove configs dir
+        # with suppress(...):
         _ = os.path.join(Network._CONFIGS_DIR, str(network.uuid))
-        if os.path.exists(_):
-            os.rmdir(_)
+        os.rmdir(_)
         ic('remove the folder')
         # delete record from db
+        # with suppress(...):
         db.Network.delete(network.uuid)
         ic('delete from db')
 
     @staticmethod
-    def delete(_uuid: UUID):
-        """
-        (1) SELECT * FROM `networks` WHERE `uuid` = :uuid LIMIT 1;
-        (2) creating models.Network
-        (3) invoke Network.clear(_)
-        """
-        raise NotImplementedError
+    def delete(network: models.NetworkDelete):
+        network = db.Network.get_by_container_id(network.container_id)
+        Network.clear(network)
+        return True
+
+    @staticmethod
+    def _get_port(network: models.Network) -> int:
+
+        pass
 
     @staticmethod
     def get_config(_uuid: UUID, _ip: IPv4Address, _password: str):
         network: models.Network = db.Network.check_password(_uuid, _password)
         if not network:
             return None
+        container_port = ic(_DOCKER.containers.get(network.container_id).ports['51820/udp'][0]['HostPort'])
+        ic(container_port)
         _dns = DNS(os.path.join(Network._CONFIGS_DIR, str(_uuid)))
-        return _dns.get_config(_ip)
+        _config = _dns.get_config(_ip)
+        if _config:
+            return _REPLACE_PORT_TEMPLATE.sub(f':{container_port}', _config)
+        return None
+
 
     @staticmethod
     def release_config(_uuid: UUID, _ip: IPv4Address):
