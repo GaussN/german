@@ -130,7 +130,7 @@ class Network:
         _config_path = os.path.join(Network._CONFIGS_DIR, str(_uuid))
         ic(_config_path)
         _model = _DOCKER.containers.run(
-            image=_DOCKER.images.get('41af0e3f25a5'),
+            image=_DOCKER.images.get('linuxserver/wireguard'),
             detach=True,
             remove=True,
             name=str(_uuid),
