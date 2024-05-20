@@ -44,9 +44,16 @@ class NetworkCreate(BaseModel):
 class NetworkDeleteIn(BaseModel):
     name: str
     password: str
-    # only creator has it that why regular user has no able to delete network  # can be replased to private key
     container_id: str
 
 
 class NetworkDelete(NetworkDeleteIn):
+    host: str
+
+
+class ReleaseConfigIn(BaseModel):
+    private_key: str
+
+
+class ReleaseConfig(ReleaseConfigIn):
     host: str

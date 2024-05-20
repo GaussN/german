@@ -1,11 +1,9 @@
-"""
-TODO: переделать днс, хранить в файле массив или словарь с номерами пиров в виде ключей
-TODO: проверять налицие данного адреса в dns
-TODO: хэшировать пароли
-"""
+import ipaddress
 import os
 import pickle
-import re
+import shutil
+import sqlite3
+import uuid
 from re import compile
 from uuid import uuid4, UUID
 from ipaddress import IPv4Address
@@ -14,6 +12,7 @@ from socket import socket, AF_INET, SOCK_STREAM
 from contextlib import suppress
 
 import docker
+import docker.errors
 from icecream import ic
 
 import db
@@ -22,7 +21,7 @@ import models
 
 _DOCKER = docker.from_env()
 
-_REPLACE_PORT_TEMPLATE = re.compile(r':51820')
+_REPLACE_PORT_TEMPLATE = compile(r':51820')
 
 
 def _get_free_port() -> int:
@@ -110,16 +109,32 @@ class DNS:
             self.dump_records()
             ic(f'dump records {self._path}')
 
-    def release_config(self, _ip: IPv4Address) -> bool:
+    def _check_private_key(self, _private_key: str) -> int:
+        ic(_private_key)
+        for _n in range(2, self._peers + 1):
+            with open(os.path.join(self._path, f'peer{_n}', f'privatekey-peer{_n}')) as _config:
+                _key = ic(_config.read().strip())
+                ic(_key == _private_key)
+                if _key == _private_key:
+                    return _n
+        return 0
+
+    def release_config(self, _ip: IPv4Address, _private_key: str) -> bool:
+        _n = ic(self._check_private_key(_private_key))
+        if not _n:
+            return False
         self.load_records()
         try:
             for _record in self.dns_records:
-                if _record.ip == _ip:
-                    _record.ip = DNS_record.get_default(_record.n)
+                if _record.n == _n and _record.ip == _ip:
+                    # _record = DNS_record.get_default(_n)
+                    _record.ip = IPv4Address('0.0.0.1')
+                    ic([_.__dict__ for _ in self.dns_records])
                     return True
             return False
         finally:
             self.dump_records()
+            ic('dump records')
 
 
 class Network:
@@ -129,8 +144,8 @@ class Network:
     def _create_container(_uuid: UUID, port: int, peers: int):
         _config_path = os.path.join(Network._CONFIGS_DIR, str(_uuid))
         ic(_config_path)
-        _model = _DOCKER.containers.run(
-            image=_DOCKER.images.get('linuxserver/wireguard'),
+        _container = _DOCKER.containers.run(
+            image=_DOCKER.images.get('lscr.io/linuxserver/wireguard'),
             detach=True,
             remove=True,
             name=str(_uuid),
@@ -154,10 +169,10 @@ class Network:
             ],
             sysctls={'net.ipv4.conf.all.src_valid_mark': 1},
         )
-        return _model
+        return _container
 
     @staticmethod
-    def create(network: models.NetworkCreate, host: str):
+    def create(network: models.NetworkCreate, host: str) -> models.Network:
         _uuid = uuid4()
 
         _config_dir = os.path.join(Network._CONFIGS_DIR, str(_uuid))
@@ -186,36 +201,32 @@ class Network:
         return network_full
 
     @staticmethod
-    def clear(network: models.Network):
+    def clear(network: models.Network) -> None:
         ic(f'clear {network.uuid}')
-        # kill the docker container
-        # with suppress(...):
-        _ = _DOCKER.containers.get(network.container_id)
-        _.kill()
-        ic('kill the containers')
-        # remove configs dir
-        # with suppress(...):
-        _ = os.path.join(Network._CONFIGS_DIR, str(network.uuid))
-        os.rmdir(_)
-        ic('remove the folder')
-        # delete record from db
-        # with suppress(...):
+        with suppress(docker.errors.NotFound):
+            _ = _DOCKER.containers.get(network.container_id)
+            _.kill()
+            ic('kill the containers')
+        with suppress(FileNotFoundError):
+            _ = os.path.join(Network._CONFIGS_DIR, str(network.uuid))
+            shutil.rmtree(_)
+            ic('remove the folder')
         db.Network.delete(network.uuid)
         ic('delete from db')
 
     @staticmethod
-    def delete(network: models.NetworkDelete):
+    def delete(network: models.NetworkDelete) -> uuid.UUID | None:
+        password = network.password
         network = db.Network.get_by_container_id(network.container_id)
+        if not network:
+            return None
+        if not db.Network.check_password(network.uuid, password):
+            return None
         Network.clear(network)
-        return True
+        return network.uuid
 
     @staticmethod
-    def _get_port(network: models.Network) -> int:
-
-        pass
-
-    @staticmethod
-    def get_config(_uuid: UUID, _ip: IPv4Address, _password: str):
+    def get_config(_uuid: UUID, _ip: IPv4Address, _password: str) -> str | None:
         network: models.Network = db.Network.check_password(_uuid, _password)
         if not network:
             return None
@@ -227,10 +238,10 @@ class Network:
             return _REPLACE_PORT_TEMPLATE.sub(f':{container_port}', _config)
         return None
 
-
     @staticmethod
-    def release_config(_uuid: UUID, _ip: IPv4Address):
-        raise NotImplementedError
+    def release_config(_uuid: UUID, private_key: str, host: ipaddress.IPv4Network):
+        _dns = DNS(os.path.join(Network._CONFIGS_DIR, str(_uuid)))
+        return ic(_dns.release_config(_ip=host, _private_key=private_key))
 
     @staticmethod
     def get_networks() -> list[models.NetworkOut]:

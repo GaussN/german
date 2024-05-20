@@ -24,7 +24,7 @@ class Network:
     @staticmethod
     def check_password(_uuid: uuid.UUID, _password: str) -> models.Network | None:
         with sqlite3.connect(DB_CONN_STRING) as conn:
-            cur = conn.execute("SELECT * FROM networks WHERE uuid = ? and password = ?", (_uuid, _password, ))
+            cur = conn.execute("SELECT * FROM networks WHERE uuid = ? and password = ?", (str(_uuid), _password, ))
             cur.row_factory = sqlite3.Row
             _res = cur.fetchone()
             ic(_res)
@@ -54,7 +54,10 @@ class Network:
         with sqlite3.connect(DB_CONN_STRING) as conn:
             cur = conn.execute("SELECT * FROM networks WHERE container_id = ?", (container_id,))
             cur.row_factory = sqlite3.Row
-            network = ic(models.Network(**cur.fetchone()))
+            network_dict = cur.fetchone()
+            if not network_dict:
+                return None
+            network = ic(models.Network(**network_dict))
             cur.close()
             return network
 
@@ -62,7 +65,6 @@ class Network:
     def delete(_uuid: uuid.UUID) -> None:
         with sqlite3.connect(DB_CONN_STRING) as conn:
             cur = conn.execute("DELETE FROM networks WHERE uuid = ?", (str(_uuid),))
-            ic(cur.fetchall())
             cur.close()
 
 
