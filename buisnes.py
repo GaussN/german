@@ -127,7 +127,6 @@ class DNS:
         try:
             for _record in self.dns_records:
                 if _record.n == _n and _record.ip == _ip:
-                    # _record = DNS_record.get_default(_n)
                     _record.ip = IPv4Address('0.0.0.1')
                     ic([_.__dict__ for _ in self.dns_records])
                     return True
@@ -196,7 +195,7 @@ class Network:
         except IntegrityError as e:
             ic(e)
             Network.clear(network_full)
-            raise
+            return None
 
         return network_full
 

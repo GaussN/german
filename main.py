@@ -13,6 +13,10 @@ app = fapi.FastAPI(debug=__debug__)
 @app.post('/network')
 async def create_network(request: fapi.Request, network: models.NetworkCreate) -> models.Network:
     new_network = buisnes.Network.create(network, request.client.host)
+    if not new_network:
+        return fapi.Response(
+            status_code=fapi.status.HTTP_409_CONFLICT,
+            content='Network with the same name already exists')
     return new_network
 
 
