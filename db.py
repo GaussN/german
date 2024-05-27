@@ -34,20 +34,10 @@ class Network:
     @staticmethod
     def get() -> list[models.Network]:
         with sqlite3.connect(DB_CONN_STRING) as conn:
-            try:
-                cur = conn.execute("SELECT * FROM networks")
-                cur.row_factory = sqlite3.Row
-                return [models.Network(**_) for _ in cur.fetchall()]
-            finally:
-                cur.close()
+            cur = conn.execute("SELECT * FROM networks")
+            cur.row_factory = sqlite3.Row
+            return [models.Network(**_) for _ in cur.fetchall()]
 
-    @staticmethod
-    def get_by_name() -> models.NetworkOut:
-        raise NotImplemented
-
-    @staticmethod
-    def get_by_uuid() -> models.NetworkOut:
-        raise NotImplemented
 
     @staticmethod
     def get_by_container_id(container_id: str) -> models.Network:
@@ -64,8 +54,18 @@ class Network:
     @staticmethod
     def delete(_uuid: uuid.UUID) -> None:
         with sqlite3.connect(DB_CONN_STRING) as conn:
-            cur = conn.execute("DELETE FROM networks WHERE uuid = ?", (str(_uuid),))
-            cur.close()
+            conn.execute("DELETE FROM networks WHERE uuid = ?", (str(_uuid),))
+
+
+    @staticmethod
+    def get_statistic() -> list[models.Statistic]:
+        statistics: list[models.Statistic] = list()
+        with sqlite3.connect(DB_CONN_STRING) as conn:
+            query = "SELECT count(*), host FROM networks GROUP BY host"
+            cur = conn.execute(query)
+            while stat := cur.fetchone():
+                statistics.append(models.Statistic(count=stat[0], host=stat[1]))
+            return statistics
 
 
 if __name__ == '__main__':

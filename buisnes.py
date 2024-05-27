@@ -18,7 +18,6 @@ from icecream import ic
 import db
 import models
 
-
 _DOCKER = docker.from_env()
 
 _REPLACE_PORT_TEMPLATE = compile(r':51820')
@@ -246,3 +245,7 @@ class Network:
     def get_networks() -> list[models.NetworkOut]:
         _networks = [models.NetworkOut(**_.__dict__) for _ in db.Network.get()]
         return ic(_networks)
+
+    @staticmethod
+    def get_statistic():
+        return db.Network.get_statistic()

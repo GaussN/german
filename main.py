@@ -42,7 +42,6 @@ async def release_config(
         private_key=private_key
     )
     return fapi.Response(status_code=fapi.status.HTTP_200_OK)
-    # return fapi.Response(content=result)
 
 
 @app.delete('/network')
@@ -56,3 +55,8 @@ async def delete_network(request: fapi.Request, network: models.NetworkDeleteIn)
 @app.get('/networks')
 async def get_networks() -> list[models.NetworkOut]:
     return buisnes.Network.get_networks()
+
+
+@app.get('/statistics')
+async def get_statistics() -> list[models.Statistic]:
+    return buisnes.Network.get_statistic()
