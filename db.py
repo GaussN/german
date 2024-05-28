@@ -79,20 +79,25 @@ if __name__ == '__main__':
                     peers INTEGER,
                     host TEXT
                 );
+            """)
 
-                CREATE TABLE sqlite_sequence(name,seq);
-
-                CREATE TRIGGER stats_trigger 
-                after insert on networks 
-                for each row 
-                begin 
-                    insert into stats(host, uuid, timestamp) values(NEW.host, NEW.uuid, strftime('%s', 'now'));
-                end;
-
+        conn.execute(
+                """
                 CREATE TABLE stats(
                     id integer primary key autoincrement,
                     host text,
                     uuid text unique,
                     timestamp integer
                 );
-   """)
+                """)
+
+        conn.execute(
+                """
+                CREATE TRIGGER stats_trigger 
+                after insert on networks 
+                for each row 
+                begin 
+                    insert into stats(host, uuid, timestamp) values(NEW.host, NEW.uuid, strftime('%s', 'now'));
+                end;
+                """)
+        
