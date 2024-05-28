@@ -58,26 +58,41 @@ class Network:
 
 
     @staticmethod
-    def get_statistic() -> list[models.Statistic]:
+    def get_statistic() -> dict:
         statistics: list[models.Statistic] = list()
         with sqlite3.connect(DB_CONN_STRING) as conn:
-            query = "SELECT count(*), host FROM networks GROUP BY host"
+            query = "SELECT * FROM stats" 
             cur = conn.execute(query)
-            while stat := cur.fetchone():
-                statistics.append(models.Statistic(count=stat[0], host=stat[1]))
-            return statistics
+            cur.row_factory = sqlite3.Row
+            return cur.fetchall()
 
 
 if __name__ == '__main__':
     with sqlite3.connect(DB_CONN_STRING) as conn:
         conn.execute(
             """
-                CREATE TABLE IF NOT EXISTS networks(
+                CREATE TABLE networks(
                     uuid TEXT PRIMARY KEY,
                     container_id TEXT UNIQUE,
                     name TEXT UNIQUE,
                     password TEXT, 
                     peers INTEGER,
                     host TEXT
-                )
-            """)
+                );
+
+                CREATE TABLE sqlite_sequence(name,seq);
+
+                CREATE TRIGGER stats_trigger 
+                after insert on networks 
+                for each row 
+                begin 
+                    insert into stats(host, uuid, timestamp) values(NEW.host, NEW.uuid, strftime('%s', 'now'));
+                end;
+
+                CREATE TABLE stats(
+                    id integer primary key autoincrement,
+                    host text,
+                    uuid text unique,
+                    timestamp integer
+                );
+   """)

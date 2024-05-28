@@ -58,5 +58,5 @@ async def get_networks() -> list[models.NetworkOut]:
 
 
 @app.get('/statistics')
-async def get_statistics() -> list[models.Statistic]:
+async def get_statistics():
     return buisnes.Network.get_statistic()

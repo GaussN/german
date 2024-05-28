@@ -58,7 +58,3 @@ class ReleaseConfigIn(BaseModel):
 class ReleaseConfig(ReleaseConfigIn):
     host: str
 
-
-class Statistic(BaseModel):
-    host: str
-    count: int
